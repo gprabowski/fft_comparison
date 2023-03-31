@@ -1,46 +1,75 @@
 #include <iostream>
-#include <vector>
 #include <random>
+#include <vector>
 
-#include <utils.h>
 #include <cpu_fft.h>
+#include <fftw3.h>
+#include <utils.h>
 
 int main() {
-    std::cout << "Testing the bit reverse function" << std::endl;
-    std::vector<int> results;
+  constexpr int N = 16;
+  constexpr int num_bits = fft::utils::highest_bit(N);
 
-    for(int i = 0; i < 8; ++i) {
-        std::cout << "Bit reversed " << i << " is: " << fft::utils::bit_reverse<3>(i) << std::endl;
-    };
+  std::cout << "Number of bits: " << num_bits << " for FFT size " << N
+            << std::endl;
 
-    constexpr int N = 1024;
-    constexpr int num_bits = fft::utils::highest_bit(N);
+  using DT = double;
+  const auto twiddle_factors =
+      fft::utils::get_roots_of_unity_singleton<N, DT>();
 
-    std::cout << "Number of bits: " << num_bits << " for FFT size " << N << std::endl;
+  std::cout << "Testing FFT correctness when compared to FFTW" << std::endl;
+  std::array<std::complex<DT>, N> data;
 
-    using DT = double;
-    std::cout << "Testing twiddle factor generation" << std::endl;
-    const auto twiddle_factors = fft::utils::get_roots_of_unity_singleton<N, DT>();
+  std::random_device rd;
+  std::uniform_real_distribution<DT> dist(0.0, 1.0);
 
-    for(int i = 0; i < N / 2; ++i) {
-        std::cout << "Twiddle factor: " << twiddle_factors[i] << " its 16th power: " << std::pow(twiddle_factors[i], N) << std::endl;
-    }
+  for (int i = 0; i < N; ++i) {
+    data[i] = dist(rd);
+  }
 
-    std::cout << "Testing FFT correctness when compared to FFTW" << std::endl;
-    std::array<std::complex<DT>, N> data;
+  // reverse order of twiddles
+  std::array<std::complex<DT>, N / 2> twiddles_reversed;
+  for (int i = 0; i < N / 2; ++i) {
+    twiddles_reversed[fft::utils::bit_reverse<num_bits - 2>(i)] =
+        twiddle_factors[i];
+  }
 
-    std::random_device rd;
-    std::uniform_real_distribution<DT> dist(0.0, 1.0);
+  // FFTW PREPARATION
 
-    for(int i = 0; i < N; ++i) { data[i] = dist(rd); }
+  fftw_complex *in, *out;
+  fftw_plan p;
 
-    // reverse order of twiddles
-    std::array<std::complex<DT>, N / 2> twiddles_reversed;
-    for(int i = 0; i < N / 2; ++i) {
-        twiddles_reversed[fft::utils::bit_reverse<num_bits - 2>(i)] = twiddle_factors[i];
-    }
+  in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
+  out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
 
-    fft::alg::cpu::dit::nr::basic_fft<DT, N>(data, twiddles_reversed);
+  for (int i = 0; i < N; ++i) {
+    in[i][0] = data[i].real();
+    in[i][1] = data[i].imag();
+  }
 
-    return 0;
+  // OUR ALG RUN
+  fft::alg::cpu::dit::nr::basic_fft<DT, N>(data, twiddles_reversed);
+
+  auto data_reversed = data;
+  // unscramble data order
+  for (int i = 0; i < N; ++i) {
+    data_reversed[fft::utils::bit_reverse<num_bits - 1>(i)] = data[i];
+  }
+
+  // FFTW RUN
+  p = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+  fftw_execute(p);
+
+  // COMPARE HERE
+  for (int i = 0; i < N; ++i) {
+    std::cout << "R: " << out[i][0] << " " << data_reversed[i].real()
+              << " I: " << out[i][1] << " " << data_reversed[i].imag()
+              << std::endl;
+  }
+
+  fftw_destroy_plan(p);
+
+  fftw_free(in);
+  fftw_free(out);
+  return 0;
 }

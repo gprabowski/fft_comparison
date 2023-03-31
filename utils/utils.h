@@ -28,7 +28,8 @@ namespace fft {
                 N >>= 1;
                 ++res;
             }
-        }
+	    return res;
+	}
 
         template<int N>
         constexpr int bit_reverse(int num) {
