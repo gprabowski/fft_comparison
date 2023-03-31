@@ -16,6 +16,10 @@ constexpr double pi = 3.14159265358979323846264338327950288419716939937510;
 constexpr double tau = 2.0 * pi;
 } // namespace constants
 
+template <int N> struct int_ {
+  static constexpr int value = N;
+};
+
 constexpr bool is_power_of_2(unsigned int N) { return (N & (N - 1)) == 0; }
 
 constexpr int highest_bit(unsigned int N) {
