@@ -1,19 +1,17 @@
-//
-// Created by gprab on 3/26/2023.
-//
+#pragma once
 
+#include "utils.h"
 #include <array>
 #include <complex>
+#include <iostream>
 #include <vector>
 
 #include <fftw3.h>
 
-#ifndef FFT_COMPARISON_CPU_FFT_H
-#define FFT_COMPARISON_CPU_FFT_H
-
 namespace fft {
 namespace alg {
 namespace cpu {
+
 // assumes bit reversed order of twiddles
 template <typename DT, typename Size> struct ibb_first {
   static constexpr int size = Size::value;
@@ -111,6 +109,66 @@ template <typename DT, typename Size> struct ibb_third {
   }
 };
 
+template <typename DT, typename Size> struct edp_first {
+  static constexpr int size = Size::value;
+
+  static std::complex<DT> one(DT v) {
+    const auto val = utils::constants::tau * v;
+    return {std::cos(val), std::sin(val)};
+  }
+
+  static DT rev(int k, int m) {
+    DT ret(1.0);
+    for (int i = 1; i < m; ++i) {
+      ret += DT(1.0) / (std::pow(2, -i)) * ((1 << (i - 1)) & k);
+    }
+
+    return ret;
+  }
+
+  static void FFT_Butterflies(int m, // radix
+                              std::vector<std::complex<DT>> &out,
+                              std::vector<std::complex<DT>> &in, int k0,
+                              int c0) {
+    // coefficient for k1 is coefficient for k0 divided by 1 << m
+    const int c1 = c0 >> m;
+    for (int k2 = 0; k2 < c1; ++k2) {
+      for (int k1 = 0; k1 < (1 << m); ++k1) {
+        std::complex<DT> sum = {0.0, 0.0};
+        for (int j1 = 0; j1 < (1 << m); ++j1) {
+          sum += one(j1 * rev(k1, utils::highest_bit(c1) - 1)) *
+                 one(j1 * rev((1 << m) * k0, m + utils::highest_bit(k0) - 1)) *
+                 in[c0 * k0 + c1 * k1 + k2];
+        }
+        out[c0 * k0 + c1 * k1 + k2] = sum;
+      }
+    }
+  }
+
+  static void execute(std::vector<std::complex<DT>> &data,
+                      const std::vector<std::complex<DT>> &twiddles) {
+    // apply the algorithm assuming out of place computation
+    // and all m being 1
+    constexpr auto log_size = utils::highest_bit(size) - 1;
+    std::vector<std::vector<std::complex<DT>>> v;
+    v.resize(log_size);
+    for (auto &vec : v) {
+      vec.resize(size);
+    }
+
+    std::copy(begin(data), end(data), begin(v[0]));
+
+    const int P = log_size;
+    for (int p = 0; p < P - 1; ++p) {
+      for (int k0; k0 < (1 << p); ++k0) {
+        FFT_Butterflies(1, v[p + 1], v[p], k0, 1 << (log_size - p));
+      }
+    }
+
+    std::copy(begin(v[log_size - 1]), end(v[log_size - 1]), begin(data));
+  }
+};
+
 template <typename DT, typename Size> struct fftw {
   static constexpr int size = Size::value;
   static void execute(std::vector<std::complex<DT>> &data,
@@ -140,8 +198,7 @@ template <typename DT, typename Size> struct fftw {
     fftw_free(out);
   }
 };
+
 } // namespace cpu
 } // namespace alg
 } // namespace fft
-
-#endif // FFT_COMPARISON_CPU_FFT_H
