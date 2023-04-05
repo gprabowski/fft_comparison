@@ -5,6 +5,7 @@
 #ifndef FFT_COMPARISON_UTILS_H
 #define FFT_COMPARISON_UTILS_H
 
+#include <array>
 #include <cmath>
 #include <complex>
 #include <vector>
@@ -12,32 +13,31 @@
 namespace fft {
 namespace utils {
 namespace constants {
-constexpr double pi = 3.14159265358979323846264338327950288419716939937510;
+constexpr double pi = 3.141592653;
 constexpr double tau = 2.0 * pi;
 } // namespace constants
 
-template <int N> struct int_ {
-  static constexpr int value = N;
+template <unsigned int N> struct int_ {
+  static constexpr unsigned int value = N;
 };
 
 constexpr bool is_power_of_2(unsigned int N) { return (N & (N - 1)) == 0; }
 
-constexpr int highest_bit(unsigned int N) {
+constexpr unsigned int log_n(unsigned int N) {
   int res = 0;
 #pragma unroll 32
   for (int i = 0; i < 32; ++i) {
-    if (N == 0)
+    if ((1 << res) == N)
       return res;
-    N >>= 1;
     ++res;
   }
   return res;
 }
 
-template <unsigned int N> constexpr int bit_reverse(long int num) {
-  int ret = 0;
+template <unsigned int N> constexpr unsigned int bit_reverse(unsigned int num) {
+  unsigned int ret = 0;
 #pragma unroll N
-  for (int i = 0; i < N; ++i) {
+  for (unsigned int i = 0; i < N; ++i) {
     ret += ((num & (1 << i)) > 0) * (1 << (N - 1 - i));
   }
 
@@ -87,6 +87,18 @@ std::vector<std::complex<DT>> get_roots_of_unity_singleton() {
   for (int k = 1; k < N / 4; ++k) {
     ret[l2 + k].real(-ret[l2 - k].real());
     ret[l2 + k].imag(ret[l2 - k].imag());
+  }
+
+  return ret;
+}
+
+template <typename DT> constexpr std::array<DT, 32> get_inv_powers() {
+  std::array<DT, 32> ret;
+  DT div = DT(2.0);
+#pragma unroll 32
+  for (int i = 0; i < 32; ++i) {
+    ret[i] = 1 / div;
+    div *= DT(2.0);
   }
 
   return ret;

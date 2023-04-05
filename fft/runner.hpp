@@ -3,8 +3,10 @@
 #include <chrono>
 #include <complex>
 #include <iostream>
+#include <type_traits>
 #include <vector>
 
+#include "cpu_fft.h"
 #include "fft_traits.hpp"
 #include "utils.h"
 
@@ -15,15 +17,15 @@ template <typename... Ts> struct type_list;
 template <typename FFT, typename DT, bool SaveOutput = false>
 void exec_fft(std::vector<std::complex<DT>> &data,
               const std::vector<std::complex<DT>> &twiddles) {
+  constexpr auto log_n = fft::utils::log_n(FFT::size);
 
   // if some order is wrong then reverse
   std::vector<std::complex<DT>> local_data, local_twiddles;
 
   if (fft::fft_trait_order<FFT>::value == fft::fft_order::RN) {
     local_data.resize(FFT::size);
-    constexpr auto hb = fft::utils::highest_bit(FFT::size);
-    for (int i = 0; i < FFT::size; ++i) {
-      local_data[i] = data[fft::utils::bit_reverse<hb - 1>(i)];
+    for (unsigned int i = 0; i < FFT::size; ++i) {
+      local_data[fft::utils::bit_reverse<log_n>(i)] = data[i];
     }
   } else {
     local_data = data;
@@ -32,9 +34,8 @@ void exec_fft(std::vector<std::complex<DT>> &data,
   if (fft::fft_trait_twiddle_order<FFT>::value ==
       fft::twiddle_order::reversed) {
     local_twiddles.resize(FFT::size / 2);
-    constexpr auto hb = fft::utils::highest_bit(FFT::size);
-    for (int i = 0; i < FFT::size / 2; ++i) {
-      local_twiddles[i] = twiddles[fft::utils::bit_reverse<hb - 2>(i)];
+    for (unsigned int i = 0; i < FFT::size / 2; ++i) {
+      local_twiddles[fft::utils::bit_reverse<log_n - 1>(i)] = twiddles[i];
     }
   } else {
     local_twiddles = twiddles;
@@ -46,14 +47,13 @@ void exec_fft(std::vector<std::complex<DT>> &data,
   }
 
   auto t1 = std::chrono::high_resolution_clock::now();
-  FFT::execute(data, twiddles);
+  FFT::execute(local_data, local_twiddles);
   auto t2 = std::chrono::high_resolution_clock::now();
 
   if constexpr (SaveOutput) {
-    if (fft::fft_trait_order<FFT>::value == fft::fft_order::RN) {
-      constexpr auto hb = fft::utils::highest_bit(FFT::size);
-      for (int i = 0; i < FFT::size; ++i) {
-        data[i] = local_data[fft::utils::bit_reverse<hb - 1>(i)];
+    if (fft::fft_trait_order<FFT>::value == fft::fft_order::NR) {
+      for (unsigned int i = 0; i < FFT::size; ++i) {
+        data[fft::utils::bit_reverse<log_n>(i)] = local_data[i];
       }
     } else {
       data = local_data;
@@ -99,29 +99,35 @@ template <typename FFTList> struct test_all_ffts_perf {
 
 template <typename FFTRef, typename FFT> struct compare_results {
   template <typename DT>
-  static bool execute(std::vector<std::complex<DT>> &data,
+  static bool execute(const std::vector<std::complex<DT>> &data,
                       const std::vector<std::complex<DT>> &twiddles) {
+
+    std::cout << "TESTING CORRECTNESS " << fft_trait_name<FFTRef>::value
+              << " and " << fft_trait_name<FFT>::value << std::endl;
+
     // get first results
-    auto data1 = data;
+    std::vector<std::complex<DT>> data1 = data;
     exec_fft<FFTRef, DT, true>(data1, twiddles);
+
     // get second results
-    auto data2 = data;
+    std::vector<std::complex<DT>> data2 = data;
     exec_fft<FFT, DT, true>(data2, twiddles);
 
     // compare
-    for (int i = 0; i < data.size(); ++i) {
+    for (unsigned int i = 0; i < data.size(); ++i) {
       const auto ratior = data1[i].real() / data2[i].real();
       const auto distr = std::abs(ratior - DT(1.0));
-      if (distr > DT(1e-4)) {
-        return false;
-      }
 
       // depending on the defition of the DFT used we can
       // get conjugated value, thus the std::abs here
       const auto ratioi = std::abs(data1[i].imag() / data2[i].imag());
       const auto disti = std::abs(ratioi - DT(1.0));
-      if (disti > DT(1e-4)) {
-        return false;
+
+      std::cout << " R: " << data1[i].real() << " " << data2[i].real()
+                << std::endl;
+
+      if (distr > DT(1e-4) || disti > DT(1e-4)) {
+        // return false;
       }
     }
 

@@ -12,12 +12,11 @@ int main() {
   using fft::utils::int_;
   namespace fac = fft::alg::cpu;
   using DT = double;
-  const unsigned int N = (1 << 20);
+  const unsigned int N = (1 << 4);
   std::random_device rd;
   std::uniform_real_distribution<DT> dist(0.0, 1.0);
 
-  const auto twiddle_factors =
-      fft::utils::get_roots_of_unity_singleton<N, DT>();
+  const auto twiddle_factors = fft::utils::get_roots_of_unity<N, DT>();
 
   std::vector<std::complex<DT>> data(N);
 
