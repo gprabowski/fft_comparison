@@ -49,7 +49,7 @@ std::vector<std::complex<DT>> get_roots_of_unity() {
   std::vector<std::complex<DT>> ret(N / 2);
   constexpr DT theta = constants::tau / N;
   for (int i = 0; i < N / 2; ++i) {
-    ret[i] = {std::cos(i * theta), std::sin(i * theta)};
+    ret[i] = {std::cos(-i * theta), std::sin(-i * theta)};
   }
   return ret;
 }
