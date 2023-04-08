@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_BUILD_TYPE Debug)
 
-add_executable(fft_comparison main.cpp)
+add_executable(fft_comparison utils/utils.cpp main.cpp)
 
 target_include_directories(fft_comparison PUBLIC utils fft)
 

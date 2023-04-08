@@ -60,6 +60,7 @@ void exec_fft(std::vector<std::complex<DT>> &data,
     }
   }
 
+
   if constexpr (!SaveOutput) {
     const auto res_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
@@ -115,19 +116,14 @@ template <typename FFTRef, typename FFT> struct compare_results {
 
     // compare
     for (unsigned int i = 0; i < data.size(); ++i) {
-      const auto ratior = data1[i].real() / data2[i].real();
-      const auto distr = std::abs(ratior - DT(1.0));
+      const auto rd = std::abs(data1[i].real() - data2[i].real());
+      const auto re = std::abs(rd / data1[i].real());
 
-      // depending on the defition of the DFT used we can
-      // get conjugated value, thus the std::abs here
-      const auto ratioi = std::abs(data1[i].imag() / data2[i].imag());
-      const auto disti = std::abs(ratioi - DT(1.0));
+      const auto id = std::abs(data1[i].imag() - data2[i].imag());
+      const auto ie = std::abs(id / data1[i].imag());
 
-      std::cout << " R: " << data1[i].real() << " " << data2[i].real()
-                << std::endl;
-
-      if (distr > DT(1e-4) || disti > DT(1e-4)) {
-        // return false;
+      if (ie > DT(1e-2) || re > DT(1e-2)) {
+        return false;
       }
     }
 

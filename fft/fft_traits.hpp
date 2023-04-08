@@ -49,6 +49,10 @@ template <typename... Ts> struct fft_trait_name<fft::alg::cpu::edp_first<Ts...>>
   static constexpr std::string_view value = "EDP First";
 };
 
+template <typename... Ts> struct fft_trait_name<fft::alg::cpu::edp_second<Ts...>> {
+  static constexpr std::string_view value = "EDP Second";
+};
+
 template <typename> struct fft_trait_name;
 
 template <typename> struct fft_trait_order;
@@ -71,7 +75,11 @@ struct fft_trait_order<fft::alg::cpu::ibb_third<Ts...>>
 
 template <typename... Ts>
 struct fft_trait_order<fft::alg::cpu::edp_first<Ts...>>
-    : order_owner<fft_order::NN> {};
+    : order_owner<fft_order::NR> {};
+
+template <typename... Ts>
+struct fft_trait_order<fft::alg::cpu::edp_second<Ts...>>
+    : order_owner<fft_order::NR> {};
 
 template <typename> struct fft_trait_type;
 
@@ -89,6 +97,10 @@ struct fft_trait_type<fft::alg::cpu::ibb_third<Ts...>>
 
 template <typename... Ts>
 struct fft_trait_type<fft::alg::cpu::edp_first<Ts...>>
+    : type_owner<fft_type::DIT> {};
+
+template <typename... Ts>
+struct fft_trait_type<fft::alg::cpu::edp_second<Ts...>>
     : type_owner<fft_type::DIT> {};
 
 template <typename... Ts>
@@ -115,5 +127,9 @@ struct fft_trait_twiddle_order<fft::alg::cpu::ibb_third<Ts...>>
 
 template <typename... Ts>
 struct fft_trait_twiddle_order<fft::alg::cpu::edp_first<Ts...>>
+    : twiddle_order_owner<twiddle_order::natural> {};
+
+template <typename... Ts>
+struct fft_trait_twiddle_order<fft::alg::cpu::edp_second<Ts...>>
     : twiddle_order_owner<twiddle_order::natural> {};
 } // namespace fft

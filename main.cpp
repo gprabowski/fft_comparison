@@ -12,7 +12,7 @@ int main() {
   using fft::utils::int_;
   namespace fac = fft::alg::cpu;
   using DT = double;
-  const unsigned int N = (1 << 4);
+  const unsigned int N = (1 << 20);
   std::random_device rd;
   std::uniform_real_distribution<DT> dist(0.0, 1.0);
 
@@ -26,7 +26,7 @@ int main() {
   using fft_list =
       fft::type_list<fac::fftw<DT, int_<N>>, fac::ibb_first<DT, int_<N>>,
                      fac::ibb_second<DT, int_<N>>, fac::ibb_third<DT, int_<N>>,
-                     fac::edp_first<DT, int_<N>>>;
+                     fac::edp_first<DT, int_<N>>, fac::edp_second<DT, int_<N>>>;
 
   if (!fft::test_all_ffts_correctness<fft_list>::execute(data,
                                                          twiddle_factors)) {

@@ -44,6 +44,8 @@ template <unsigned int N> constexpr unsigned int bit_reverse(unsigned int num) {
   return ret;
 }
 
+unsigned int bit_reverse(unsigned int num, unsigned int digits);
+
 template <unsigned int N, typename DT = float>
 std::vector<std::complex<DT>> get_roots_of_unity() {
   std::vector<std::complex<DT>> ret(N / 2);
@@ -90,6 +92,16 @@ std::vector<std::complex<DT>> get_roots_of_unity_singleton() {
   }
 
   return ret;
+}
+
+template <typename DT> std::complex<DT> one(DT v) {
+  const auto val = utils::constants::tau * v;
+  return {std::cos(val), std::sin(val)};
+}
+
+template <typename DT> DT edp_rev(int k, int m) {
+  const auto rev = utils::bit_reverse(k, m);
+  return rev / DT(1 << m);
 }
 
 template <typename DT> constexpr std::array<DT, 32> get_inv_powers() {
