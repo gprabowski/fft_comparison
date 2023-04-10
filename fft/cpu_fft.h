@@ -1,8 +1,10 @@
 #pragma once
 
+#include "fft.hpp"
 #include "utils.h"
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <complex>
 #include <iostream>
 #include <vector>
@@ -13,12 +15,14 @@ namespace fft {
 namespace alg {
 namespace cpu {
 
-// assumes bit reversed order of twiddles
-template <typename DT, typename Size> struct ibb_first {
-  static constexpr int size = Size::value;
-  static void execute(std::vector<std::complex<DT>> &data,
-                      const std::vector<std::complex<DT>> &twiddles) {
+template <typename DT, typename Size>
+struct ibb_first : fft_functor<ibb_first<DT, Size>,
+                               fft_properties<DT, Size::value, false, true>> {
+  using this_type = ibb_first<DT, Size>;
+  static void exec_impl(std::vector<std::complex<DT>> &data) {
     constexpr int N = Size::value;
+
+    const auto twiddles = utils::get_roots_of_unity<N, true, DT>();
 
     int pairs_in_groups = N / 2;
     int num_groups = 1;
@@ -42,14 +46,20 @@ template <typename DT, typename Size> struct ibb_first {
   }
 };
 
-template <typename DT, typename Size> struct ibb_second {
+template <typename DT, typename Size>
+struct ibb_second : fft_functor<ibb_second<DT, Size>,
+                                fft_properties<DT, Size::value, true, false>> {
   static constexpr int size = Size::value;
-  static void execute(std::vector<std::complex<DT>> &data,
-                      const std::vector<std::complex<DT>> &twiddles) {
+  using this_type = ibb_second<DT, Size>;
+  static void exec_impl(std::vector<std::complex<DT>> &data) {
     constexpr int N = Size::value;
+
+    const auto twiddles = utils::get_roots_of_unity<N, false, DT>();
+
     int pairs_in_groups = N / 2;
     int num_groups = 1;
     int distance = 1;
+
     while (num_groups < N) {
       auto gap_to_next_pair = 2 * num_groups;
       auto gap_to_last_pair = gap_to_next_pair * (pairs_in_groups - 1);
@@ -72,17 +82,20 @@ template <typename DT, typename Size> struct ibb_second {
   }
 };
 
-template <typename DT, typename Size> struct ibb_third {
-  static constexpr int size = Size::value;
-  static void execute(std::vector<std::complex<DT>> &data,
-                      const std::vector<std::complex<DT>> &twiddles) {
+template <typename DT, typename Size>
+struct ibb_third : fft_functor<ibb_third<DT, Size>,
+                               fft_properties<DT, Size::value, false, false>> {
+  using this_type = ibb_third<DT, Size>;
+  static void exec_impl(std::vector<std::complex<DT>> &data) {
     constexpr int N = Size::value;
+
+    const auto twiddles = utils::get_roots_of_unity<N, false, DT>();
+
     int pairs_in_groups = N / 2;
     int num_groups = 1;
     int distance = N / 2;
 
     auto data_out = data.data();
-
     auto data2 = data;
 
     while (num_groups < N) {
@@ -111,9 +124,10 @@ template <typename DT, typename Size> struct ibb_third {
   }
 };
 
-template <typename DT, typename Size> struct edp_first {
+template <typename DT, typename Size>
+struct edp_first : fft_functor<edp_first<DT, Size>,
+                               fft_properties<DT, Size::value, false, true>> {
   static constexpr int size = Size::value;
-
   static void FFT_Butterflies(int m, // radix
                               std::vector<std::complex<DT>> &out,
                               std::vector<std::complex<DT>> &in, int k0, int c0,
@@ -133,8 +147,7 @@ template <typename DT, typename Size> struct edp_first {
     }
   }
 
-  static void execute(std::vector<std::complex<DT>> &data,
-                      const std::vector<std::complex<DT>> &twiddles) {
+  static void exec_impl(std::vector<std::complex<DT>> &data) {
     // apply the algorithm assuming out of place computation
     // and all m being 1
     constexpr auto log_size = utils::log_n(size);
@@ -157,7 +170,10 @@ template <typename DT, typename Size> struct edp_first {
   }
 };
 
-template <typename DT, typename Size> struct edp_second {
+template <typename DT, typename Size>
+struct edp_second : fft_functor<edp_second<DT, Size>,
+                                fft_properties<DT, Size::value, false, false>> {
+
   static constexpr int size = Size::value;
   static constexpr DT tau = utils::constants::tau;
   using complex_t = std::complex<DT>;
@@ -169,7 +185,12 @@ template <typename DT, typename Size> struct edp_second {
     DT w1i, w1r, w2i, w2r, w3i, w3r;
   };
 
+  struct final_weight {
+    DT w1r[4], w1i[4], w2r[4], w2i[4], w3r[4], w3i[4];
+  };
+
   using weight_vec = std::vector<common_weight>;
+  using final_weight_vec = std::vector<final_weight>;
 
   static unsigned int rw(unsigned int k) {
     static const unsigned char b[256] = {
@@ -205,10 +226,10 @@ template <typename DT, typename Size> struct edp_second {
     const int c1 = c0 >> 2;
     int k2;
 
-    DT a0r, a0i, a1r, a1i, a2r, a2i, a3r, a3i, b1r, b1i, b2r, b2i, b3r, b3i,
-        c0r, c0i, c1r, c1i, c2r, c2i, c3r, c3i, d0r, d0i, d1r, d1i, d2r, d2i,
-        d3r, d3i;
     for (k2 = 0; k2 < c1; ++k2) {
+      DT a0r, a0i, a1r, a1i, a2r, a2i, a3r, a3i, b1r, b1i, b2r, b2i, b3r, b3i,
+          c0r, c0i, c1r, c1i, c2r, c2i, c3r, c3i, d0r, d0i, d1r, d1i, d2r, d2i,
+          d3r, d3i;
       // Goedecker's algorithm for easy vectorization
 
       // Load data into registers
@@ -553,55 +574,214 @@ template <typename DT, typename Size> struct edp_second {
       weights[k0].w1i = std::tan(x);
       weights[k0].w2r = std::cos(x + x);
       weights[k0].w2i = std::tan(x + x);
-      weights[k0].w3r = 2. * weights[k0].w2r - 1.;
+      weights[k0].w3r = std::cos(3. * x);
       weights[k0].w3i = std::tan(3. * x);
     }
   }
 
-  static void execute(com_arr &data, const com_arr &twiddles) {
+  struct final_index {
+    unsigned short int read, write;
+  };
+
+  static inline final_index construct(unsigned int read, unsigned int write) {
+    final_index ret;
+    ret.read = read;
+    ret.write = write;
+    return ret;
+  }
+
+  static void generate_final_weights(final_weight_vec &weights, int length,
+                                     std::vector<final_index> &indices) {
+    const double rn = 1. / length;
+
+    weights.resize(length / 16);
+
+    for (int q = 0; q < length / 16; ++q) {
+      const int kl = indices[q].read;
+      const double r4kl = r(4 * kl);
+      for (int khprime = 0; khprime < 4; ++khprime) {
+        const double x = tau * (r4kl + khprime * rn);
+        weights[q].w1r[khprime] = std::cos(x);
+        weights[q].w1i[khprime] = std::tan(x);
+        weights[q].w2r[khprime] = std::cos(x + x);
+        weights[q].w2i[khprime] = std::tan(x + x);
+        weights[q].w3r[khprime] = 2. * weights[q].w2r[khprime] - 1.;
+        weights[q].w3i[khprime] = std::tan(3. * x);
+      }
+    }
+  }
+
+  static void generate_final_indices(std::vector<final_index> &indices,
+                                     int length) {
+    const int shift = 32 - (ilog2(length) - 4);
+    int kl;
+    indices.resize(length / 16);
+
+    int idx = 0;
+    for (kl = 0; kl < length / 16; ++kl) {
+      // rw(kL) reverses kl as a 32-bit number. To get it as
+      // the reversal of an N-4 bit number, shift right to
+      // remove 32-(N-4) bits.
+      const int klprime = rw(kl) >> shift;
+
+      // if klprime < kl then kl in a previous iteration
+      // had the value klprime has now, and we do not want to
+      // repeat it
+      if (kl <= klprime) {
+        // If kL == kLprime, add one table entry.
+        // If kL != kLprime, add table entries in both orders.
+        indices[idx++] = construct(kl, klprime);
+        if (kl < klprime)
+          indices[idx++] = construct(klprime, kl);
+      }
+    }
+  }
+
+  static void FFT4_Final(com_arr &data, int u0,
+                         const std::vector<final_index> &indices,
+                         const final_weight_vec &weights) {
+    using float4 = float[4];
+    float4 a0r, a0i, a1r, a1i, a2r, a2i, a3r, a3i, b1r, b1i, b2r, b2i, b3r, b3i,
+        c0r, c0i, c1r, c1i, c2r, c2i, c3r, c3i, d0r, d0i, d1r, d1i, d2r, d2i,
+        d3r, d3i;
+    int q = 0;
+
+    const auto read_elements = [&](auto kl) {
+      a0r[0] = data[u0 * 0 + 4 * kl + 0].real();
+      a1r[0] = data[u0 * 0 + 4 * kl + 1].real();
+      a2r[0] = data[u0 * 0 + 4 * kl + 2].real();
+      a3r[0] = data[u0 * 0 + 4 * kl + 3].real();
+      a0r[1] = data[u0 * 2 + 4 * kl + 0].real();
+      a1r[1] = data[u0 * 2 + 4 * kl + 1].real();
+      a2r[1] = data[u0 * 2 + 4 * kl + 2].real();
+      a3r[1] = data[u0 * 2 + 4 * kl + 3].real();
+      a0r[2] = data[u0 * 1 + 4 * kl + 0].real();
+      a1r[2] = data[u0 * 1 + 4 * kl + 1].real();
+      a2r[2] = data[u0 * 1 + 4 * kl + 2].real();
+      a3r[2] = data[u0 * 1 + 4 * kl + 3].real();
+      a0r[3] = data[u0 * 3 + 4 * kl + 0].real();
+      a1r[3] = data[u0 * 3 + 4 * kl + 1].real();
+      a2r[3] = data[u0 * 3 + 4 * kl + 2].real();
+      a3r[3] = data[u0 * 3 + 4 * kl + 3].real();
+      a0i[0] = data[u0 * 0 + 4 * kl + 0].imag();
+      a1i[0] = data[u0 * 0 + 4 * kl + 1].imag();
+      a2i[0] = data[u0 * 0 + 4 * kl + 2].imag();
+      a3i[0] = data[u0 * 0 + 4 * kl + 3].imag();
+      a0i[1] = data[u0 * 2 + 4 * kl + 0].imag();
+      a1i[1] = data[u0 * 2 + 4 * kl + 1].imag();
+      a2i[1] = data[u0 * 2 + 4 * kl + 2].imag();
+      a3i[1] = data[u0 * 2 + 4 * kl + 3].imag();
+      a0i[2] = data[u0 * 1 + 4 * kl + 0].imag();
+      a1i[2] = data[u0 * 1 + 4 * kl + 1].imag();
+      a2i[2] = data[u0 * 1 + 4 * kl + 2].imag();
+      a3i[2] = data[u0 * 1 + 4 * kl + 3].imag();
+      a0i[3] = data[u0 * 3 + 4 * kl + 0].imag();
+      a1i[3] = data[u0 * 3 + 4 * kl + 1].imag();
+      a2i[3] = data[u0 * 3 + 4 * kl + 2].imag();
+      a3i[3] = data[u0 * 3 + 4 * kl + 3].imag();
+    };
+
+    const auto write_reversed_elements = [&](auto klprime) {
+      int khprime;
+      for (khprime = 0; khprime < 4; ++khprime) {
+        data[u0 * 0 + 4 * klprime + khprime].real(d0r[khprime]);
+        data[u0 * 2 + 4 * klprime + khprime].real(d1r[khprime]);
+        data[u0 * 1 + 4 * klprime + khprime].real(d2r[khprime]);
+        data[u0 * 3 + 4 * klprime + khprime].real(d3r[khprime]);
+        data[u0 * 0 + 4 * klprime + khprime].imag(d0i[khprime]);
+        data[u0 * 2 + 4 * klprime + khprime].imag(d1i[khprime]);
+        data[u0 * 1 + 4 * klprime + khprime].imag(d2i[khprime]);
+        data[u0 * 3 + 4 * klprime + khprime].imag(d3i[khprime]);
+      }
+    };
+
+    const auto perform_butterflies = [&](auto weight) {
+      for (int i = 0; i < 4; ++i) {
+        b1r[i] = -a1i[i] * weight.w1i[i] + a1r[i];
+        b1i[i] = +a1r[i] * weight.w1i[i] + a1i[i];
+        b2r[i] = -a2i[i] * weight.w2i[i] + a2r[i];
+        b2i[i] = +a2r[i] * weight.w2i[i] + a2i[i];
+        b3r[i] = -a3i[i] * weight.w3i[i] + a3r[i];
+        b3i[i] = +a3r[i] * weight.w3i[i] + a3i[i];
+        c0r[i] = +b2r[i] * weight.w2r[i] + a0r[i];
+        c0i[i] = +b2i[i] * weight.w2r[i] + a0i[i];
+        c2r[i] = -b2r[i] * weight.w2r[i] + a0r[i];
+        c2i[i] = -b2i[i] * weight.w2r[i] + a0i[i];
+        c1r[i] = +b3r[i] * weight.w3r[i] + b1r[i];
+        c1i[i] = +b3i[i] * weight.w3r[i] + b1i[i];
+        c3r[i] = -b3r[i] * weight.w3r[i] + b1r[i];
+        c3i[i] = -b3i[i] * weight.w3r[i] + b1i[i];
+        d0r[i] = +c1r[i] * weight.w1r[i] + c0r[i];
+        d0i[i] = +c1i[i] * weight.w1r[i] + c0i[i];
+        d1r[i] = -c1r[i] * weight.w1r[i] + c0r[i];
+        d1i[i] = -c1i[i] * weight.w1r[i] + c0i[i];
+        d2r[i] = -c3i[i] * weight.w1r[i] + c2r[i];
+        d2i[i] = +c3r[i] * weight.w1r[i] + c2i[i];
+        d3r[i] = +c3i[i] * weight.w1r[i] + c2r[i];
+        d3i[i] = -c3r[i] * weight.w1r[i] + c2i[i];
+      }
+    };
+
+    read_elements(indices[q].read);
+    perform_butterflies(weights[q]);
+    for (q = 1; q < (u0 >> 2); ++q) {
+      read_elements(indices[q].read);
+      write_reversed_elements(indices[q - 1].write);
+      perform_butterflies(weights[q]);
+    }
+    write_reversed_elements(indices[q - 1].write);
+  }
+
+  static void exec_impl(com_arr &data) {
     // apply the algorithm assuming out of place computation
     // and all m being 1
     constexpr auto log_size = utils::log_n(size);
 
     weight_vec weights;
+    final_weight_vec final_weights;
+    std::vector<final_index> final_indices;
 
-    generate_common_weights(weights, size * 16);
+    generate_common_weights(weights, size);
+
+    generate_final_indices(final_indices, size);
+    generate_final_weights(final_weights, size, final_indices);
 
     const int first_radix = (size & 1) ? 3 : 2;
     const int P = (log_size - first_radix) / 2 + 1;
 
-    int n = 0;
-    if (size & 1) {
-      FFT8_0Weights(data, log_size);
+    if (log_size & 1) {
+      FFT8_0Weights(data, 1 << log_size);
     } else {
-      FFT4_0Weights(data, log_size);
+      FFT4_0Weights(data, 1 << log_size);
     }
-    n += first_radix;
 
-    int p;
+    int n, n_lb = (log_size & 1) ? 3 : 2;
 
-    for (p = 1; p < P - 2; ++p) {
-      for (int k0 = 0; k0 < (1 << n); ++k0) {
-        FFT4_1WeightPerCall(data, k0, 1 << (log_size - n), weights[k0]);
+    for (n = n_lb; n < log_size - 4; n += 2) {
+      FFT4_0Weights(data, 1 << (log_size - n));
+    }
+
+    for (int k0 = 1; n_lb < log_size - 4; n_lb += 2) {
+      for (; k0 < (1 << n_lb); ++k0) {
+        for (n = n_lb; n < log_size - 4; n += 2) {
+          FFT4_1WeightPerCall(data, k0, 1 << (log_size - n), weights[k0]);
+        }
       }
-      n += 2;
     }
 
-    if (p < P - 1) {
+    if (n < log_size - 2) {
       FFT4_1WeightPerIteration(data, 1 << (log_size - 4), weights);
-      n += 2;
     }
 
-    p = P - 1;
-    FFT4_Final(data, 1 << (log_size - 2), weights);
-    n += 2;
+    FFT4_Final(data, 1 << (log_size - 2), final_indices, final_weights);
   }
 };
 
-template <typename DT, typename Size> struct fftw {
-  static constexpr int size = Size::value;
-  static void execute(std::vector<std::complex<DT>> &data,
-                      const std::vector<std::complex<DT>> &twiddles) {
+template <typename DT, typename Size>
+struct fftw : fft_functor<fftw<DT, Size>,
+                          fft_properties<DT, Size::value, false, false>> {
+  static void exec_impl(std::vector<std::complex<DT>> &data) {
+    constexpr auto size = Size::value;
 
     fftw_complex *in, *out;
     fftw_plan p;

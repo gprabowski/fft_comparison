@@ -3,11 +3,12 @@ project(fft_comparison LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 add_executable(fft_comparison utils/utils.cpp main.cpp)
+
 
 target_include_directories(fft_comparison PUBLIC utils fft)
 
@@ -18,3 +19,8 @@ find_package(FFTW)
 
 target_include_directories(fft_comparison PUBLIC ${FFTW_INCLUDE_DIRS})
 target_link_libraries(fft_comparison PUBLIC ${FFTW_LIBRARIES})
+
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(fft_comparison PUBLIC OpenMP::OpenMP_CXX)
+endif()

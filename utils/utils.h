@@ -5,6 +5,7 @@
 #ifndef FFT_COMPARISON_UTILS_H
 #define FFT_COMPARISON_UTILS_H
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -46,17 +47,33 @@ template <unsigned int N> constexpr unsigned int bit_reverse(unsigned int num) {
 
 unsigned int bit_reverse(unsigned int num, unsigned int digits);
 
-template <unsigned int N, typename DT = float>
+template <unsigned int N, bool ReversedOrder, typename DT = float>
 std::vector<std::complex<DT>> get_roots_of_unity() {
+  constexpr auto log_n = utils::log_n(N);
   std::vector<std::complex<DT>> ret(N / 2);
   constexpr DT theta = constants::tau / N;
   for (int i = 0; i < N / 2; ++i) {
-    ret[i] = {std::cos(-i * theta), std::sin(-i * theta)};
+    if constexpr (ReversedOrder) {
+      ret[bit_reverse<log_n - 1>(i)] = {std::cos(-i * theta),
+                                        std::sin(-i * theta)};
+    } else {
+      ret[i] = {std::cos(-i * theta), std::sin(-i * theta)};
+    }
   }
   return ret;
 }
 
-template <unsigned int N, typename DT = float>
+template <int N, typename DT>
+void rearrange_data(std::vector<std::complex<DT>> &data) {
+  constexpr auto log_n = utils::log_n(N);
+  for (int i = 0; i < N; ++i) {
+    if (i < bit_reverse<log_n - 1>(i)) {
+      std::swap(data[bit_reverse<log_n - 1>(i)], data[i]);
+    }
+  }
+}
+
+template <unsigned int N, bool ReversedOrder, typename DT = float>
 std::vector<std::complex<DT>> get_roots_of_unity_singleton() {
   std::vector<std::complex<DT>> ret(N / 2);
   constexpr DT theta = constants::tau / N;
@@ -89,6 +106,10 @@ std::vector<std::complex<DT>> get_roots_of_unity_singleton() {
   for (int k = 1; k < N / 4; ++k) {
     ret[l2 + k].real(-ret[l2 - k].real());
     ret[l2 + k].imag(ret[l2 - k].imag());
+  }
+
+  if constexpr (ReversedOrder) {
+    rearrange_data<N>(ret);
   }
 
   return ret;
