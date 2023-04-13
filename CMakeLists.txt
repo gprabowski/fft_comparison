@@ -12,6 +12,10 @@ add_executable(fft_comparison utils/utils.cpp main.cpp)
 
 target_include_directories(fft_comparison PUBLIC utils fft)
 
+target_compile_options(fft_comparison PUBLIC "--std=c++20")
+target_compile_options(fft_comparison PUBLIC "-mavx2")
+target_compile_options(fft_comparison PUBLIC "-march=native")
+
 # FFTW
 include("cmake/CMakeFFTWConfig.txt")
 

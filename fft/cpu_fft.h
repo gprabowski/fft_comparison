@@ -9,6 +9,9 @@
 #include <iostream>
 #include <vector>
 
+// AVX2 support
+#include <immintrin.h>
+
 #include <fftw3.h>
 
 namespace fft {
@@ -179,7 +182,9 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
   using complex_t = std::complex<DT>;
   using com_arr = std::vector<complex_t>;
 
-  static inline int ilog2(unsigned int n) { return 31 - __builtin_clz(n); }
+  constexpr static inline int ilog2(unsigned int n) {
+    return 31 - __builtin_clz(n);
+  }
 
   struct common_weight {
     DT w1i, w1r, w2i, w2r, w3i, w3r;
@@ -192,44 +197,44 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
   using weight_vec = std::vector<common_weight>;
   using final_weight_vec = std::vector<final_weight>;
 
-  static unsigned int rw(unsigned int k) {
-    static const unsigned char b[256] = {
-        0,   128, 64,  192, 32,  160, 96,  224, 16,  144, 80,  208, 48,  176,
-        112, 240, 8,   136, 72,  200, 40,  168, 104, 232, 24,  152, 88,  216,
-        56,  184, 120, 248, 4,   132, 68,  196, 36,  164, 100, 228, 20,  148,
-        84,  212, 52,  180, 116, 244, 12,  140, 76,  204, 44,  172, 108, 236,
-        28,  156, 92,  220, 60,  188, 124, 252, 2,   130, 66,  194, 34,  162,
-        98,  226, 18,  146, 82,  210, 50,  178, 114, 242, 10,  138, 74,  202,
-        42,  170, 106, 234, 26,  154, 90,  218, 58,  186, 122, 250, 6,   134,
-        70,  198, 38,  166, 102, 230, 22,  150, 86,  214, 54,  182, 118, 246,
-        14,  142, 78,  206, 46,  174, 110, 238, 30,  158, 94,  222, 62,  190,
-        126, 254, 1,   129, 65,  193, 33,  161, 97,  225, 17,  145, 81,  209,
-        49,  177, 113, 241, 9,   137, 73,  201, 41,  169, 105, 233, 25,  153,
-        89,  217, 57,  185, 121, 249, 5,   133, 69,  197, 37,  165, 101, 229,
-        21,  149, 85,  213, 53,  181, 117, 245, 13,  141, 77,  205, 45,  173,
-        109, 237, 29,  157, 93,  221, 61,  189, 125, 253, 3,   131, 67,  195,
-        35,  163, 99,  227, 19,  147, 83,  211, 51,  179, 115, 243, 11,  139,
-        75,  203, 43,  171, 107, 235, 27,  155, 91,  219, 59,  187, 123, 251,
-        7,   135, 71,  199, 39,  167, 103, 231, 23,  151, 87,  215, 55,  183,
-        119, 247, 15,  143, 79,  207, 47,  175, 111, 239, 31,  159, 95,  223,
-        63,  191, 127, 255};
+  // helper array for rw function
+  constexpr static const unsigned char b[256] = {
+      0,  128, 64, 192, 32, 160, 96,  224, 16, 144, 80, 208, 48, 176, 112, 240,
+      8,  136, 72, 200, 40, 168, 104, 232, 24, 152, 88, 216, 56, 184, 120, 248,
+      4,  132, 68, 196, 36, 164, 100, 228, 20, 148, 84, 212, 52, 180, 116, 244,
+      12, 140, 76, 204, 44, 172, 108, 236, 28, 156, 92, 220, 60, 188, 124, 252,
+      2,  130, 66, 194, 34, 162, 98,  226, 18, 146, 82, 210, 50, 178, 114, 242,
+      10, 138, 74, 202, 42, 170, 106, 234, 26, 154, 90, 218, 58, 186, 122, 250,
+      6,  134, 70, 198, 38, 166, 102, 230, 22, 150, 86, 214, 54, 182, 118, 246,
+      14, 142, 78, 206, 46, 174, 110, 238, 30, 158, 94, 222, 62, 190, 126, 254,
+      1,  129, 65, 193, 33, 161, 97,  225, 17, 145, 81, 209, 49, 177, 113, 241,
+      9,  137, 73, 201, 41, 169, 105, 233, 25, 153, 89, 217, 57, 185, 121, 249,
+      5,  133, 69, 197, 37, 165, 101, 229, 21, 149, 85, 213, 53, 181, 117, 245,
+      13, 141, 77, 205, 45, 173, 109, 237, 29, 157, 93, 221, 61, 189, 125, 253,
+      3,  131, 67, 195, 35, 163, 99,  227, 19, 147, 83, 211, 51, 179, 115, 243,
+      11, 139, 75, 203, 43, 171, 107, 235, 27, 155, 91, 219, 59, 187, 123, 251,
+      7,  135, 71, 199, 39, 167, 103, 231, 23, 151, 87, 215, 55, 183, 119, 247,
+      15, 143, 79, 207, 47, 175, 111, 239, 31, 159, 95, 223, 63, 191, 127, 255};
+
+  constexpr static unsigned int rw(unsigned int k) noexcept {
     unsigned char b0 = b[(k >> (0 * 8)) & 0xff], b1 = b[(k >> (1 * 8)) & 0xff],
                   b2 = b[(k >> (2 * 8)) & 0xff], b3 = b[(k >> (3 * 8)) & 0xff];
     return (b0 << (3 * 8)) | (b1 << (2 * 8)) | (b2 << (1 * 8)) |
            (b3 << (0 * 8));
   }
 
-  static DT r(unsigned int k) { return DT(1.) / DT(4294967296.) * rw(k); }
+  constexpr static inline DT r(unsigned int k) noexcept {
+    return DT(1.) / DT(4294967296.) * rw(k);
+  }
 
   static void FFT4_1WeightPerCall(com_arr &data, int k0, int c0,
-                                  const common_weight &weight) {
+                                  const common_weight &weight) noexcept {
     const int c1 = c0 >> 2;
-    int k2;
+    DT a0r, a0i, a1r, a1i, a2r, a2i, a3r, a3i, b1r, b1i, b2r, b2i, b3r, b3i,
+        c0r, c0i, c1r, c1i, c2r, c2i, c3r, c3i, d0r, d0i, d1r, d1i, d2r, d2i,
+        d3r, d3i;
 
-    for (k2 = 0; k2 < c1; ++k2) {
-      DT a0r, a0i, a1r, a1i, a2r, a2i, a3r, a3i, b1r, b1i, b2r, b2i, b3r, b3i,
-          c0r, c0i, c1r, c1i, c2r, c2i, c3r, c3i, d0r, d0i, d1r, d1i, d2r, d2i,
-          d3r, d3i;
+    for (int k2 = 0; k2 < c1; ++k2) {
       // Goedecker's algorithm for easy vectorization
 
       // Load data into registers
@@ -580,7 +585,7 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
   }
 
   struct final_index {
-    unsigned short int read, write;
+    unsigned int read, write;
   };
 
   static inline final_index construct(unsigned int read, unsigned int write) {
@@ -637,6 +642,137 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
     }
   }
 
+  // Store 4 integers from SSE vector using offsets from another vector
+  static inline void scatter(double *rdi, __m128i idx, __m256d data) {
+    const auto tmp = _mm256_extractf128_pd(data, 0);
+    const auto tmp2 = _mm256_extractf128_pd(data, 1);
+    rdi[(uint32_t)_mm_cvtsi128_si32(idx)] = _mm_cvtsd_f64(tmp);
+
+    rdi[(uint32_t)_mm_extract_epi32(idx, 1)] =
+        _mm_cvtsd_f64(_mm_unpacklo_pd(tmp, tmp));
+
+    rdi[(uint32_t)_mm_extract_epi32(idx, 2)] = _mm_cvtsd_f64(tmp2);
+    rdi[(uint32_t)_mm_extract_epi32(idx, 3)] =
+        _mm_cvtsd_f64(_mm_unpacklo_pd(tmp2, tmp2));
+  }
+
+  static void FFT4_Final_AVX2(com_arr &data, int u0,
+                              const std::vector<final_index> &indices,
+                              const final_weight_vec &weights) {
+    __m256d a0r, a1r, a2r, a3r, a0i, a1i, a2i, a3i;
+    __m128i offsets = _mm_setr_epi32(2, 2, 2, 2);
+    __m128i offsetsw = _mm_setr_epi32(0, 2, 4, 6);
+    __m128i offsetsw2 = _mm_setr_epi32(0, 1, 2, 3);
+
+    const auto read_elements = [&](auto kl) {
+      const auto index = 4 * kl;
+
+      double *hb00r = reinterpret_cast<double *>(&data[u0 * 0 + index]);
+      double *hb01r = reinterpret_cast<double *>(&data[u0 * 2 + index]);
+      double *hb10r = reinterpret_cast<double *>(&data[u0 * 1 + index]);
+      double *hb11r = reinterpret_cast<double *>(&data[u0 * 3 + index]);
+      double *hb00i = reinterpret_cast<double *>(&data[u0 * 0 + index]) + 1;
+      double *hb01i = reinterpret_cast<double *>(&data[u0 * 2 + index]) + 1;
+      double *hb10i = reinterpret_cast<double *>(&data[u0 * 1 + index]) + 1;
+      double *hb11i = reinterpret_cast<double *>(&data[u0 * 3 + index]) + 1;
+
+      const auto y0r = _mm256_i32gather_pd(hb00r, offsetsw, 1);
+      const auto y1r = _mm256_i32gather_pd(hb01r, offsetsw, 1);
+      const auto y2r = _mm256_i32gather_pd(hb10r, offsetsw, 1);
+      const auto y3r = _mm256_i32gather_pd(hb11r, offsetsw, 1);
+
+      const auto y0i = _mm256_i32gather_pd(hb00i, offsetsw, 1);
+      const auto y1i = _mm256_i32gather_pd(hb01i, offsetsw, 1);
+      const auto y2i = _mm256_i32gather_pd(hb10i, offsetsw, 1);
+      const auto y3i = _mm256_i32gather_pd(hb11i, offsetsw, 1);
+
+      const auto z0r = _mm256_unpackhi_pd(y0r, y1r);
+      const auto z1r = _mm256_unpacklo_pd(y0r, y1r);
+      const auto z2r = _mm256_unpackhi_pd(y2r, y3r);
+      const auto z3r = _mm256_unpacklo_pd(y2r, y3r);
+
+      a0r = _mm256_unpackhi_pd(z0r, z2r);
+      a1r = _mm256_unpacklo_pd(z0r, z2r);
+      a2r = _mm256_unpackhi_pd(z1r, z3r);
+      a3r = _mm256_unpacklo_pd(z1r, z3r);
+
+      const auto z0i = _mm256_unpackhi_pd(y0i, y1i);
+      const auto z1i = _mm256_unpacklo_pd(y0i, y1i);
+      const auto z2i = _mm256_unpackhi_pd(y2i, y3i);
+      const auto z3i = _mm256_unpacklo_pd(y2i, y3i);
+
+      a0i = _mm256_unpackhi_pd(z0i, z2i);
+      a1i = _mm256_unpacklo_pd(z0i, z2i);
+      a2i = _mm256_unpackhi_pd(z1i, z3i);
+      a3i = _mm256_unpacklo_pd(z1i, z3i);
+    };
+
+    const auto write_reversed_elements = [&](auto klprime) {
+      const auto index = 4 * klprime;
+
+      double *hb00r = reinterpret_cast<double *>(&data[u0 * 0 + index]);
+      double *hb01r = reinterpret_cast<double *>(&data[u0 * 2 + index]);
+      double *hb10r = reinterpret_cast<double *>(&data[u0 * 1 + index]);
+      double *hb11r = reinterpret_cast<double *>(&data[u0 * 3 + index]);
+      double *hb00i = reinterpret_cast<double *>(&data[u0 * 0 + index]) + 1;
+      double *hb01i = reinterpret_cast<double *>(&data[u0 * 2 + index]) + 1;
+      double *hb10i = reinterpret_cast<double *>(&data[u0 * 1 + index]) + 1;
+      double *hb11i = reinterpret_cast<double *>(&data[u0 * 3 + index]) + 1;
+
+      scatter(hb00r, offsetsw, a0r);
+      scatter(hb01r, offsetsw, a1r);
+      scatter(hb10r, offsetsw, a2r);
+      scatter(hb11r, offsetsw, a3r);
+      scatter(hb00i, offsetsw, a0i);
+      scatter(hb01i, offsetsw, a1i);
+      scatter(hb10i, offsetsw, a2i);
+      scatter(hb11i, offsetsw, a3i);
+    };
+
+    const auto perform_butterflies = [&](auto weight) {
+      const auto w1i = _mm256_i32gather_pd(&weight.w1i[0], offsetsw2, 1);
+      const auto w2i = _mm256_i32gather_pd(&weight.w2i[0], offsetsw2, 1);
+      const auto w3i = _mm256_i32gather_pd(&weight.w3i[0], offsetsw2, 1);
+      const auto w1r = _mm256_i32gather_pd(&weight.w1r[0], offsetsw2, 1);
+      const auto w2r = _mm256_i32gather_pd(&weight.w2r[0], offsetsw2, 1);
+      const auto w3r = _mm256_i32gather_pd(&weight.w3r[0], offsetsw2, 1);
+
+      const auto b1r = _mm256_fnmadd_pd(a1i, w1i, a1r);
+      const auto b1i = _mm256_fmadd_pd(a1r, w1i, a1i);
+      const auto b2r = _mm256_fnmadd_pd(a2i, w2i, a2r);
+      const auto b2i = _mm256_fmadd_pd(a2r, w2i, a2i);
+      const auto b3r = _mm256_fnmadd_pd(a3i, w3i, a3r);
+      const auto b3i = _mm256_fmadd_pd(a3r, w3i, a3i);
+      const auto c0r = _mm256_fmadd_pd(b2r, w2r, a0r);
+      const auto c0i = _mm256_fmadd_pd(b2i, w2r, a0i);
+      const auto c2r = _mm256_fnmadd_pd(b2r, w2r, a0r);
+      const auto c2i = _mm256_fnmadd_pd(b2i, w2r, a0i);
+      const auto c1r = _mm256_fmadd_pd(b3r, w3r, b1r);
+      const auto c1i = _mm256_fmadd_pd(b3i, w3r, b1i);
+      const auto c3r = _mm256_fnmadd_pd(b3r, w3r, b1r);
+      const auto c3i = _mm256_fnmadd_pd(b3i, w3r, b1i);
+
+      a0r = _mm256_fmadd_pd(c1r, w1r, c0r);
+      a0i = _mm256_fmadd_pd(c1i, w1r, c0i);
+      a1r = _mm256_fnmadd_pd(c1r, w1r, c0i);
+      a1i = _mm256_fnmadd_pd(c1i, w1r, c0i);
+      a2r = _mm256_fnmadd_pd(c3i, w1r, c2r);
+      a2i = _mm256_fmadd_pd(c3r, w1r, c2i);
+      a3r = _mm256_fmadd_pd(c3i, w1r, c2r);
+      a3i = _mm256_fnmadd_pd(c3r, w1r, c2i);
+    };
+
+    int q = 0;
+
+    read_elements(indices[q].read);
+    perform_butterflies(weights[q]);
+    for (q = 1; q < (u0 >> 2); ++q) {
+      read_elements(indices[q].read);
+      write_reversed_elements(indices[q - 1].write);
+      perform_butterflies(weights[q]);
+    }
+    write_reversed_elements(indices[q - 1].write);
+  }
   static void FFT4_Final(com_arr &data, int u0,
                          const std::vector<final_index> &indices,
                          const final_weight_vec &weights) {

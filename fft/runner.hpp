@@ -18,6 +18,16 @@ template <typename FFT, typename DT, bool SaveOutput = false>
 void exec_fft(std::vector<std::complex<DT>> &data) {
   if constexpr (!SaveOutput) {
     // print name
+    // flush cache
+    const size_t bigger_than_cache = 100 * 1024 * 1024;
+    long *p = new long[bigger_than_cache];
+
+    for (int i = 0; i < bigger_than_cache; ++i) {
+      p[i] = rand();
+    }
+
+    // compute
+
     std::cout << "Now running: " << fft_trait_name<FFT>::value << std::endl;
     std::vector<std::complex<DT>> local_data = data;
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -28,10 +38,10 @@ void exec_fft(std::vector<std::complex<DT>> &data) {
 
     std::cout << "That took " << res_ms.count()
               << " microseconds: " << std::endl;
+    delete[] p;
   } else {
     FFT::execute(data);
   }
-
 }
 
 template <typename> struct run_tests;
@@ -82,8 +92,11 @@ template <typename FFTRef, typename FFT> struct compare_results {
       const auto id = std::abs(data1[i].imag() - data2[i].imag());
       const auto ie = std::abs(id / data1[i].imag());
 
+      std::cout << "R: " << data1[i].real() << " " << data2[i].real()
+                << std::endl;
+
       if (ie > DT(1e-2) || re > DT(1e-2)) {
-        //return false;
+        // return false;
       }
     }
 
@@ -107,8 +120,7 @@ struct check_perf<type_list<FFTRef, FFT, FFTs...>> {
   template <typename DT>
   static bool execute(std::vector<std::complex<DT>> &data) {
     const bool bthis = compare_results<FFTRef, FFT>::execute(data);
-    return bthis &&
-           check_perf<type_list<FFTRef, FFTs...>>::execute(data);
+    return bthis && check_perf<type_list<FFTRef, FFTs...>>::execute(data);
   }
 };
 
