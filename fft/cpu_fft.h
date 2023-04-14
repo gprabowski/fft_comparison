@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <complex>
 #include <iostream>
+#include <signal.h>
 #include <vector>
 
 // AVX2 support
@@ -224,11 +226,11 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
   }
 
   constexpr static inline DT r(unsigned int k) noexcept {
-    return DT(1.) / DT(4294967296.) * rw(k);
+    return rw(k) / DT(4294967296.);
   }
 
   static void FFT4_1WeightPerCall(com_arr &data, int k0, int c0,
-                                  const common_weight &weight) noexcept {
+                                  const common_weight &weight) {
     const int c1 = c0 >> 2;
     DT a0r, a0i, a1r, a1i, a2r, a2i, a3r, a3i, b1r, b1i, b2r, b2i, b3r, b3i,
         c0r, c0i, c1r, c1i, c2r, c2i, c3r, c3i, d0r, d0i, d1r, d1i, d2r, d2i,
@@ -252,8 +254,8 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
       b1i = +a1r * weight.w1i + a1i;
       b2r = -a2i * weight.w2i + a2r;
       b2i = +a2r * weight.w2i + a2i;
-      b1r = -a3i * weight.w3i + a3r;
-      b1i = +a3r * weight.w3i + a3i;
+      b3r = -a3i * weight.w3i + a3r;
+      b3i = +a3r * weight.w3i + a3i;
 
       c0r = +b2r * weight.w2r + a0r;
       c0i = +b2i * weight.w2r + a0i;
@@ -272,6 +274,7 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
       d2i = +c3r * weight.w1r + c2i;
       d3r = +c3i * weight.w1r + c2r;
       d3i = -c3r * weight.w1r + c2i;
+
       // END OF GOEDECKER COMPUTATION
 
       // Store results
@@ -509,67 +512,9 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
     }
   }
 
-  static void FFT4_Final(com_arr &data, int u0, const weight_vec &weights) {
-    int k0;
-    DT a0r, a0i, a1r, a1i, a2r, a2i, a3r, a3i, b1r, b1i, b2r, b2i, b3r, b3i,
-        c0r, c0i, c1r, c1i, c2r, c2i, c3r, c3i, d0r, d0i, d1r, d1i, d2r, d2i,
-        d3r, d3i;
-
-    for (k0 = 0; k0 < u0; ++k0) {
-      // load values for current weight
-      // into registers
-      common_weight weight = weights[k0];
-
-      // load data into registers
-      a0r = data[4 * k0 + 0].real();
-      a0i = data[4 * k0 + 0].imag();
-      a1r = data[4 * k0 + 1].real();
-      a1i = data[4 * k0 + 1].imag();
-      a2r = data[4 * k0 + 2].real();
-      a2i = data[4 * k0 + 2].imag();
-      a3r = data[4 * k0 + 3].real();
-      a3i = data[4 * k0 + 3].imag();
-
-      // perform goedecker computation
-      b1r = -a1i * weight.w1i + a1r;
-      b1i = +a1r * weight.w1i + a1i;
-      b2r = -a2i * weight.w2i + a2r;
-      b2i = +a2r * weight.w2i + a2i;
-      b3r = -a3i * weight.w3i + a3r;
-      b3i = +a3r * weight.w3i + a3i;
-
-      c0r = +b2r * weight.w2r + a0r;
-      c0i = +b2i * weight.w2r + a0i;
-      c2r = -b2r * weight.w2r + a0r;
-      c2i = -b2i * weight.w2r + a0i;
-      c1r = +b3r * weight.w3r + b1r;
-      c1i = +b3i * weight.w3r + b1i;
-      c3r = -b3r * weight.w3r + b1r;
-      c3i = -b3i * weight.w3r + b1i;
-
-      d0r = +c1r * weight.w1r + c0r;
-      d0i = +c1i * weight.w1r + c0i;
-      d1r = -c1r * weight.w1r + c0r;
-      d1i = -c1i * weight.w1r + c0i;
-      d2r = -c3i * weight.w1r + c2r;
-      d2i = +c3r * weight.w1r + c2i;
-      d3r = +c3i * weight.w1r + c2r;
-      d3i = -c3r * weight.w1r + c2i;
-
-      // store back results
-      data[4 * k0 + 0].real(d0r);
-      data[4 * k0 + 0].imag(d0i);
-      data[4 * k0 + 1].real(d1r);
-      data[4 * k0 + 1].imag(d1i);
-      data[4 * k0 + 2].real(d2r);
-      data[4 * k0 + 2].imag(d2i);
-      data[4 * k0 + 3].real(d3r);
-      data[4 * k0 + 3].imag(d3i);
-    }
-  }
-
-  static void generate_common_weights(weight_vec &weights, int length) {
-    int k0;
+  static void generate_common_weights(weight_vec &weights,
+                                      unsigned int length) {
+    unsigned int k0;
 
     weights.resize(length / 16);
 
@@ -579,13 +524,13 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
       weights[k0].w1i = std::tan(x);
       weights[k0].w2r = std::cos(x + x);
       weights[k0].w2i = std::tan(x + x);
-      weights[k0].w3r = std::cos(3. * x);
+      weights[k0].w3r = 2. * weights[k0].w2r - 1.;
       weights[k0].w3i = std::tan(3. * x);
     }
   }
 
   struct final_index {
-    unsigned int read, write;
+    unsigned short int read, write;
   };
 
   static inline final_index construct(unsigned int read, unsigned int write) {
@@ -597,7 +542,7 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
 
   static void generate_final_weights(final_weight_vec &weights, int length,
                                      std::vector<final_index> &indices) {
-    const double rn = 1. / length;
+    const double dlen = static_cast<double>(length);
 
     weights.resize(length / 16);
 
@@ -605,7 +550,7 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
       const int kl = indices[q].read;
       const double r4kl = r(4 * kl);
       for (int khprime = 0; khprime < 4; ++khprime) {
-        const double x = tau * (r4kl + khprime * rn);
+        const double x = tau * (r4kl + khprime / dlen);
         weights[q].w1r[khprime] = std::cos(x);
         weights[q].w1i[khprime] = std::tan(x);
         weights[q].w2r[khprime] = std::cos(x + x);
@@ -799,6 +744,7 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
       a1r[3] = data[u0 * 3 + 4 * kl + 1].real();
       a2r[3] = data[u0 * 3 + 4 * kl + 2].real();
       a3r[3] = data[u0 * 3 + 4 * kl + 3].real();
+
       a0i[0] = data[u0 * 0 + 4 * kl + 0].imag();
       a1i[0] = data[u0 * 0 + 4 * kl + 1].imag();
       a2i[0] = data[u0 * 0 + 4 * kl + 2].imag();
@@ -882,8 +828,7 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
     generate_final_indices(final_indices, size);
     generate_final_weights(final_weights, size, final_indices);
 
-    const int first_radix = (size & 1) ? 3 : 2;
-    const int P = (log_size - first_radix) / 2 + 1;
+    int val = 0;
 
     if (log_size & 1) {
       FFT8_0Weights(data, 1 << log_size);
@@ -904,7 +849,6 @@ struct edp_second : fft_functor<edp_second<DT, Size>,
         }
       }
     }
-
     if (n < log_size - 2) {
       FFT4_1WeightPerIteration(data, 1 << (log_size - 4), weights);
     }

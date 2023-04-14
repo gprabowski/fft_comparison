@@ -12,7 +12,7 @@ int main() {
   using fft::utils::int_;
   namespace fac = fft::alg::cpu;
   using DT = double;
-  const unsigned int N = (1 << 6);
+  const unsigned int N = (1 << 15);
   std::random_device rd;
   std::uniform_real_distribution<DT> dist(0.0, 1.0);
 
@@ -27,7 +27,7 @@ int main() {
                      fac::edp_first<DT, int_<N>>, fac::edp_second<DT, int_<N>>>;
 
   using final_list =
-      fft::type_list<fac::fftw<DT, int_<N>>, fac::ibb_first<DT, int_<N>>>;
+      fft::type_list<fac::fftw<DT, int_<N>>, fac::edp_second<DT, int_<N>>>;
 
   if (!fft::test_all_ffts_correctness<final_list>::execute(data)) {
     std::cerr << "FAILED CORRECTNESS TEST" << std::endl;
