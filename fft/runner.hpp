@@ -92,12 +92,14 @@ template <typename FFTRef, typename FFT> struct compare_results {
       const auto id = std::abs(data1[i].imag() - data2[i].imag());
       const auto ie = std::abs(id / data1[i].imag());
 
-      if (i == 0) {
-        std::cout << "R: " << data1[i].real() << " " << data2[i].real()
-                  << std::endl;
-      } else {
-        std::cout << "R: " << data1[i].real() << " "
-                  << data2[data2.size() - i].real() << std::endl;
+      if constexpr (false) {
+        if (i == 0) {
+          std::cout << "R: " << data1[i].real() << " " << data2[i].real()
+                    << std::endl;
+        } else {
+          std::cout << "R: " << data1[i].real() << " "
+                    << data2[data2.size() - i].real() << std::endl;
+        }
       }
 
       if (ie > DT(1e-2) || re > DT(1e-2)) {

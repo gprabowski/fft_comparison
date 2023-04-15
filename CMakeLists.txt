@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(CMAKE_BUILD_TYPE Release)
 
+set(FFTW_USE_STATIC_LIBS true)
+
 add_executable(fft_comparison utils/utils.cpp main.cpp)
 
 
