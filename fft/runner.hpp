@@ -71,7 +71,7 @@ template <typename FFTList> struct test_all_ffts_perf {
 
 template <typename FFTRef, typename FFT> struct compare_results {
   template <typename DT>
-  static bool execute(const std::vector<std::complex<DT>> &data) {
+  static void execute(const std::vector<std::complex<DT>> &data) {
 
     std::cout << "TESTING CORRECTNESS " << fft_trait_name<FFTRef>::value
               << " and " << fft_trait_name<FFT>::value << std::endl;
@@ -85,13 +85,10 @@ template <typename FFTRef, typename FFT> struct compare_results {
     exec_fft<FFT, DT, true>(data2);
 
     // compare
+    DT mse{0.0f};
     for (unsigned int i = 0; i < data.size(); ++i) {
-      const auto rd = std::abs(data1[i].real() - data2[i].real());
-      const auto re = std::abs(rd / data1[i].real());
-
-      const auto id = std::abs(data1[i].imag() - data2[i].imag());
-      const auto ie = std::abs(id / data1[i].imag());
-
+      const auto current_se =
+          std::norm(data1[i] - ((i == 0) ? data2[i] : data2[data2.size() - i]));
       if constexpr (false) {
         if (i == 0) {
           std::cout << "R: " << data1[i].real() << " " << data2[i].real()
@@ -100,41 +97,40 @@ template <typename FFTRef, typename FFT> struct compare_results {
           std::cout << "R: " << data1[i].real() << " "
                     << data2[data2.size() - i].real() << std::endl;
         }
+        std::cout << "MSE: " << mse << std::endl;
       }
-
-      if (ie > DT(1e-2) || re > DT(1e-2)) {
-        // return false;
-      }
+      mse += current_se;
     }
+    mse = mse / DT(data.size());
 
-    return true;
+    std::cout << "MSE of " << fft_trait_name<FFTRef>::value << " and "
+              << fft_trait_name<FFT>::value << " : " << mse << std::endl;
   }
 };
 
-template <typename> struct check_perf;
+template <typename> struct check_correctness;
 
 template <typename FFTRef, typename FFT>
-struct check_perf<type_list<FFTRef, FFT>> {
+struct check_correctness<type_list<FFTRef, FFT>> {
   template <typename DT>
-  static bool execute(std::vector<std::complex<DT>> &data) {
-    const bool bthis = compare_results<FFTRef, FFT>::execute(data);
-    return bthis;
+  static void execute(std::vector<std::complex<DT>> &data) {
+    compare_results<FFTRef, FFT>::execute(data);
   }
 };
 
 template <typename FFTRef, typename FFT, typename... FFTs>
-struct check_perf<type_list<FFTRef, FFT, FFTs...>> {
+struct check_correctness<type_list<FFTRef, FFT, FFTs...>> {
   template <typename DT>
-  static bool execute(std::vector<std::complex<DT>> &data) {
-    const bool bthis = compare_results<FFTRef, FFT>::execute(data);
-    return bthis && check_perf<type_list<FFTRef, FFTs...>>::execute(data);
+  static void execute(std::vector<std::complex<DT>> &data) {
+    compare_results<FFTRef, FFT>::execute(data);
+    check_correctness<type_list<FFTRef, FFTs...>>::execute(data);
   }
 };
 
 template <typename FFTList> struct test_all_ffts_correctness {
   template <typename DT>
-  static bool execute(std::vector<std::complex<DT>> &data) {
-    return check_perf<FFTList>::execute(data);
+  static void execute(std::vector<std::complex<DT>> &data) {
+    check_correctness<FFTList>::execute(data);
   }
 };
 } // namespace fft

@@ -20,6 +20,7 @@ struct ibb_first : fft_functor<ibb_first<DT, Size>,
     int num_groups = 1;
     int distance = N / 2;
     while (num_groups < N) {
+#pragma omp parallel for num_threads(8)
       for (int k = 0; k < num_groups; ++k) {
         const int j_first = 2 * k * pairs_in_groups;
         const int j_last = j_first + pairs_in_groups - 1;

@@ -8,37 +8,31 @@ namespace fft {
 
 template <typename> struct fft_trait_name;
 
-template <typename... Ts>
-struct fft_trait_name<fft::alg::cpu::ibb_first<Ts...>> {
+template <> struct fft_trait_name<fft::alg::cpu::ibbc_first> {
   static constexpr std::string_view value = "DIT NR from Inside FFT";
 };
 
-template <typename... Ts>
-struct fft_trait_name<fft::alg::cpu::ibb_second<Ts...>> {
+template <> struct fft_trait_name<fft::alg::cpu::ibbc_second> {
   static constexpr std::string_view value = "DIT RN from Inside FFT";
 };
 
-template <typename... Ts>
-struct fft_trait_name<fft::alg::cpu::ibb_third<Ts...>> {
+template <> struct fft_trait_name<fft::alg::cpu::ibbc_third> {
   static constexpr std::string_view value = "DIT NN from Inside FFT";
 };
 
-template <typename... Ts> struct fft_trait_name<fft::alg::cpu::fftw<Ts...>> {
+template <> struct fft_trait_name<fft::alg::cpu::fftwc> {
   static constexpr std::string_view value = "FFTW3";
 };
 
-template <typename... Ts>
-struct fft_trait_name<fft::alg::cpu::edp_first<Ts...>> {
+template <> struct fft_trait_name<fft::alg::cpu::edpc_first> {
   static constexpr std::string_view value = "EDP DIT Out of Place";
 };
 
-template <typename... Ts>
-struct fft_trait_name<fft::alg::cpu::edp_second<Ts...>> {
+template <> struct fft_trait_name<fft::alg::cpu::edpc_second> {
   static constexpr std::string_view value = "EDP DIT In Place";
 };
 
-template <typename... Ts>
-struct fft_trait_name<fft::alg::cpu::edp_third<Ts...>> {
+template <> struct fft_trait_name<fft::alg::cpu::edpc_third> {
   static constexpr std::string_view value = "EDP DIT In Place Out of cache";
 };
 
