@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cpu_fft.h"
+#include "kissfft/kissfft.hpp"
 
 #include <string_view>
 
@@ -22,6 +23,10 @@ template <> struct fft_trait_name<fft::alg::cpu::ibbc_third> {
 
 template <> struct fft_trait_name<fft::alg::cpu::fftwc> {
   static constexpr std::string_view value = "FFTW3";
+};
+
+template <> struct fft_trait_name<fft::alg::cpu::kissfftc> {
+  static constexpr std::string_view value = "KISS FFT";
 };
 
 template <> struct fft_trait_name<fft::alg::cpu::edpc_first> {

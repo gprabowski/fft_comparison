@@ -87,18 +87,7 @@ template <typename FFTRef, typename FFT> struct compare_results {
     // compare
     DT mse{0.0f};
     for (unsigned int i = 0; i < data.size(); ++i) {
-      const auto current_se =
-          std::norm(data1[i] - ((i == 0) ? data2[i] : data2[data2.size() - i]));
-      if constexpr (false) {
-        if (i == 0) {
-          std::cout << "R: " << data1[i].real() << " " << data2[i].real()
-                    << std::endl;
-        } else {
-          std::cout << "R: " << data1[i].real() << " "
-                    << data2[data2.size() - i].real() << std::endl;
-        }
-        std::cout << "MSE: " << mse << std::endl;
-      }
+      const auto current_se = std::norm(data1[i] - data2[i]);
       mse += current_se;
     }
     mse = mse / DT(data.size());

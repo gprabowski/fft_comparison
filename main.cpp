@@ -1,4 +1,6 @@
+#include "edp/edp.hpp"
 #include "edp/edp_third.hpp"
+#include "kissfft/kissfft.hpp"
 #include "runner.hpp"
 #include <algorithm>
 #include <chrono>
@@ -25,7 +27,7 @@ int main() {
   std::transform(begin(data), end(data), begin(data),
                  [&](auto) { return std::complex<DT>(dist(rd), dist(rd)); });
 
-  using final_list = fft::type_list<fac::fftwc, fac::ibbc_first>;
+  using final_list = fft::type_list<fac::fftwc, fac::kissfftc>;
 
   fft::test_all_ffts_correctness<final_list>::execute(data);
   fft::test_all_ffts_perf<final_list>::execute(data);
